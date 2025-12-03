@@ -3,20 +3,23 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"online_bank/config"
 
 	_ "github.com/lib/pq"
 )
 
-func Connect() (*sql.DB, error) {
-	connStr := "user=postgres password=Upup1748$$ dbname=online_bank sslmode=disable"
+func Connect(cfg *config.Config) (*sql.DB, error) {
+	connStr := fmt.Sprintf(
+		"user=%s password=%s dbname=%s sslmode=disable",
+		cfg.DBUser, cfg.DBPassword, cfg.DBName,
+	)
 
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка при открытии соединения: %v", err)
 	}
 
-	err = db.Ping()
-	if err != nil {
+	if err = db.Ping(); err != nil {
 		return nil, fmt.Errorf("не удалось подключиться к БД: %v", err)
 	}
 
