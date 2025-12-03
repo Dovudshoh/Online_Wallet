@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Перевод пользователю</title>
+
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+</head>
+<body class="bg-light">
+
+<div class="container mt-5">
+    <div class="card p-4 shadow">
+        <h2 class="mb-4 text-center">Перевод другому пользователю</h2>
+
+        <form method="POST" action="/transfer">
+
+            <div class="mb-3">
+                <label for="to_id" class="form-label">Выберите получателя:</label>
+                <select id="to_id" name="to_id" class="form-select" required>
+                    {{range .}}
+                        <option value="{{.ID}}">{{.Name}} (ID: {{.ID}})</option>
+                    {{end}}
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Сумма (TJS):</label>
+                <input type="number" step="0.01" class="form-control" id="amount" name="amount" required>
+            </div>
+
+            <button type="submit" class="btn btn-warning w-100">Отправить</button>
+        </form>
+
+        <a href="/dashboard" class="btn btn-link mt-3">← Назад в личный кабинет</a>
+    </div>
+</div>
+
+</body>
+</html>

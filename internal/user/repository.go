@@ -1,0 +1,209 @@
+package user
+
+import (
+	"fmt"
+	"database/sql"
+	"errors"
+	"time"
+
+	"golang.org/x/crypto/bcrypt"
+)
+
+type UserRepository struct {
+	db *sql.DB
+}
+
+func NewUserRepository(db *sql.DB) *UserRepository {
+	return &UserRepository{db: db}
+}
+
+
+
+func (r *UserRepository) CreateUser(name, email, password string) error {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Exec(`
+		INSERT INTO users (name, email, password, balance_tjs, balance_usd, balance_eur, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`, name, email, string(hash), 100.0, 0.0, 0.0, time.Now())
+	return err
+}
+
+func (r *UserRepository) GetByEmail(email string) (*User, error) {
+	u := &User{}
+	row := r.db.QueryRow(`
+		SELECT id, name, email, password, balance_tjs, balance_usd, balance_eur, created_at 
+		FROM users WHERE email = $1
+	`, email)
+	err := row.Scan(&u.ID, &u.Name, &u.Email, &u.Password, &u.BalanceTJS, &u.BalanceUSD, &u.BalanceEUR, &u.CreatedAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return u, nil
+}
+
+func (r *UserRepository) CheckPassword(u *User, password string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password))
+	return err == nil
+}
+
+func (r *UserRepository) SaveToken(userID int, token string) error {
+	_, err := r.db.Exec(`
+		INSERT INTO user_tokens(token, user_id, created_at)
+		VALUES($1, $2, $3)
+	`, token, userID, time.Now())
+	return err
+}
+
+func (r *UserRepository) GetUserIDByToken(token string) (int, error) {
+	var userID int
+	err := r.db.QueryRow(`SELECT user_id FROM user_tokens WHERE token=$1`, token).Scan(&userID)
+	if err != nil {
+		return 0, err
+	}
+	return userID, nil
+}
+
+func (r *UserRepository) GetUserByID(id int) (*User, error) {
+	u := &User{}
+	row := r.db.QueryRow(`
+		SELECT id, name, email, balance_tjs, balance_usd, balance_eur 
+		FROM users 
+		WHERE id=$1
+	`, id)
+	err := row.Scan(&u.ID, &u.Name, &u.Email, &u.BalanceTJS, &u.BalanceUSD, &u.BalanceEUR)
+	if err != nil {
+		return nil, err
+	}
+	return u, nil
+}
+
+func (r *UserRepository) GetAllUsersExcept(excludeID int) ([]*User, error) {
+	rows, err := r.db.Query("SELECT id, name FROM users WHERE id != $1", excludeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []*User
+	for rows.Next() {
+		u := &User{}
+		if err := rows.Scan(&u.ID, &u.Name); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, nil
+}
+
+func (r *UserRepository) Deposit(userID int, amount float64) error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(`UPDATE users SET balance_tjs = balance_tjs + $1 WHERE id=$2`, amount, userID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	_, err = tx.Exec(`
+		INSERT INTO transactions (user_id, type, amount, currency, description, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+	`, userID, "deposit", amount, "TJS", "Пополнение счета", time.Now())
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (r *UserRepository) Transfer(fromID, toID int, amount float64) error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	var senderBalance float64
+	err = tx.QueryRow(`SELECT balance_tjs FROM users WHERE id=$1`, fromID).Scan(&senderBalance)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	if senderBalance < amount {
+		tx.Rollback()
+		return errors.New("insufficient funds")
+	}
+
+	_, err = tx.Exec(`UPDATE users SET balance_tjs = balance_tjs - $1 WHERE id=$2`, amount, fromID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	_, err = tx.Exec(`UPDATE users SET balance_tjs = balance_tjs + $1 WHERE id=$2`, amount, toID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	_, err = tx.Exec(`
+		INSERT INTO transactions (user_id, type, amount, currency, description, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+	`, fromID, "transfer", -amount, "TJS", "Перевод пользователю "+fmt.Sprint(toID), time.Now())
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	_, err = tx.Exec(`
+		INSERT INTO transactions (user_id, type, amount, currency, description, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+	`, toID, "transfer", amount, "TJS", "Получено от пользователя "+fmt.Sprint(fromID), time.Now())
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit()
+}
+
+
+func (r *UserRepository) ConvertCurrency(userID int, from, to string, amount, rate float64) error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(`UPDATE users SET balance_`+from+` = balance_`+from+` - $1 WHERE id=$2`, amount, userID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	converted := amount * rate
+	_, err = tx.Exec(`UPDATE users SET balance_`+to+` = balance_`+to+` + $1 WHERE id=$2`, converted, userID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	_, err = tx.Exec(`
+		INSERT INTO transactions (user_id, type, amount, currency, description, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+	`, userID, "conversion", amount, from, "Конвертация в "+to, time.Now())
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit()
+}

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Личный кабинет</title>
+
+    <link 
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" 
+        rel="stylesheet"
+    >
+</head>
+
+<body class="bg-light">
+
+<div class="container mt-5">
+
+    <div class="card shadow-lg p-4">
+
+        <h1 class="text-center mb-4">Добро пожаловать, {{.Name}}</h1>
+
+        <div class="alert alert-primary text-center">
+            <strong>Ваш ID:</strong> {{.ID}}
+        </div>
+
+        <h3 class="mt-4 mb-3">Баланс</h3>
+
+        <div class="row">
+
+            <div class="col-md-4 mb-3">
+                <div class="card border-success text-center shadow-sm">
+                    <div class="card-body">
+                        <h5 class="text-success">Сомони (TJS)</h5>
+                        <p class="fs-4">{{.BalanceTJS}}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 mb-3">
+                <div class="card border-primary text-center shadow-sm">
+                    <div class="card-body">
+                        <h5 class="text-primary">Доллары (USD)</h5>
+                        <p class="fs-4">{{.BalanceUSD}}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 mb-3">
+                <div class="card border-warning text-center shadow-sm">
+                    <div class="card-body">
+                        <h5 class="text-warning">Евро (EUR)</h5>
+                        <p class="fs-4">{{.BalanceEUR}}</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <h3 class="mt-4 mb-3">Меню</h3>
+
+        <div class="list-group">
+            <a href="/deposit" class="list-group-item list-group-item-action">
+                Пополнение счета
+            </a>
+            <a href="/transfer" class="list-group-item list-group-item-action">
+                Перевод другому пользователю
+            </a>
+            <a href="/convert" class="list-group-item list-group-item-action">
+                Конвертация валют
+            </a>
+        </div>
+
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+</html>
