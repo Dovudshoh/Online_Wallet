@@ -83,6 +83,34 @@ func (r *UserRepository) GetUserByID(id int) (*User, error) {
 	}
 	return u, nil
 }
+func (r *UserRepository) GetTransactionsByID(userID int) ([]*Transactions, error) {
+	rows, err := r.db.Query(`
+		SELECT type, amount, currency, description, created_at
+		FROM transactions
+		WHERE user_id = $1
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	
+	var transactions []*Transactions
+	for rows.Next() {
+		t := &Transactions{}
+		if err := rows.Scan(&t.TType, &t.Amount, &t.Currency, &t.Description, &t.CreatedAt); err != nil {
+			return nil, err
+		}
+		transactions = append(transactions, t)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	
+	return transactions, nil
+}
+
+
 
 func (r *UserRepository) GetAllUsersExcept(excludeID int) ([]*User, error) {
 	rows, err := r.db.Query("SELECT id, name FROM users WHERE id != $1", excludeID)

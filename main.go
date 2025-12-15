@@ -41,6 +41,8 @@ func main() {
 	http.HandleFunc("/deposit", userHandler.DepositPage)
 	http.HandleFunc("/transfer", userHandler.TransferPage)
 	http.HandleFunc("/convert", userHandler.ConvertPage)
+	http.HandleFunc("/transactions", userHandler.TransactionsPage)
+	http.HandleFunc("/logout", userHandler.LogoutPage)
 
 	log.Println("Сервер запущен на http://localhost:8080/login")
 	log.Fatal(http.ListenAndServe(":8080", nil))

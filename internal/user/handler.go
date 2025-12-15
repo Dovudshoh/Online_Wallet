@@ -1,8 +1,8 @@
 package user
 
 import (
-	"net/http"
 	"html/template"
+	"net/http"
 	"strconv"
 )
 
@@ -197,6 +197,25 @@ func (h *UserHandler) ConvertPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
 	}
 }
+func (h *UserHandler) TransactionsPage(w http.ResponseWriter, r *http.Request) {
+	userID, err := h.getUserIDFromCookie(r)
+	if err != nil {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+
+	user, err := h.service.GetTransactions(userID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+
+	h.templates.ExecuteTemplate(w, "transactions.html", user)
+}
+func (h *UserHandler) LogoutPage(w http.ResponseWriter, r *http.Request) {
+	h.Logout(w, r)
+}
 
 
 func (h *UserHandler) getUserIDFromCookie(r *http.Request) (int, error) {
@@ -207,3 +226,15 @@ func (h *UserHandler) getUserIDFromCookie(r *http.Request) (int, error) {
 
 	return h.service.GetUserIDByToken(cookie.Value)
 }
+
+func (h *UserHandler) Logout(w http.ResponseWriter, r *http.Request) {
+    http.SetCookie(w, &http.Cookie{
+        Name:     "auth_token",
+        Value:    "",
+        Path:     "/",
+        MaxAge:   -1, 
+        HttpOnly: true,
+    })
+    http.Redirect(w, r, "/login", http.StatusSeeOther)
+}
+

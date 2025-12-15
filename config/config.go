@@ -12,7 +12,6 @@ type Config struct {
 	DBName     string `json:"db_name"`
 }
 
-// Загружаем настройки из файла
 func LoadConfig(filename string) (*Config, error) {
 	file, err := os.Open(filename)
 	if err != nil {

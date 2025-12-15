@@ -61,6 +61,9 @@ func (s *UserService) GetUserIDByToken(token string) (int, error) {
 func (s *UserService) GetBalance(userID int) (*User, error) {
 	return s.repo.GetUserByID(userID)
 }
+func (s *UserService) GetTransactions(userID int) ([]*Transactions, error) {
+	return s.repo.GetTransactionsByID(userID)
+}
 
 func (s *UserService) Deposit(userID int, amount float64) error {
 	if amount <= 0 {
