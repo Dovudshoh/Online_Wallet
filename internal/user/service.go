@@ -64,6 +64,16 @@ func (s *UserService) GetBalance(userID int) (*User, error) {
 func (s *UserService) GetTransactions(userID int) ([]*Transactions, error) {
 	return s.repo.GetTransactionsByID(userID)
 }
+func (s *UserService) UpProfile(name, bio, avatar_path string, id int) error {
+	return s.repo.UpdateProfile(name, bio, avatar_path, id)
+}
+func (s *UserService) GetProfile(id int) (*AboutPerson, error) {
+	return s.repo.GetProfile(id)
+}
+func (s *UserService) GetAvatar(id int) (string, error) {
+	return s.repo.GetAvatar_path(id)
+}
+
 
 func (s *UserService) Deposit(userID int, amount float64) error {
 	if amount <= 0 {

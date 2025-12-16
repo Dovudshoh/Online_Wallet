@@ -13,6 +13,7 @@ type User struct {
 	BalanceUSD float64  
 	BalanceEUR float64  
 	CreatedAt time.Time 
+	Avatar_path string
 }
 
 type Transactions struct{
@@ -21,4 +22,10 @@ type Transactions struct{
 	Currency string
 	Description string
 	CreatedAt time.Time 
+}
+
+type AboutPerson struct{
+	Full_name string
+	Bio string
+	Avatar_path string 
 }

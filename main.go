@@ -30,6 +30,7 @@ func main() {
 
 	// Шаблоны
 	templates := template.Must(template.ParseGlob("templates/*.html"))
+	http.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir("uploads"))))
 
 	// Handler
 	userHandler := user.NewUserHandler(userService, templates)
@@ -43,6 +44,7 @@ func main() {
 	http.HandleFunc("/convert", userHandler.ConvertPage)
 	http.HandleFunc("/transactions", userHandler.TransactionsPage)
 	http.HandleFunc("/logout", userHandler.LogoutPage)
+	http.HandleFunc("/about", userHandler.AboutPage)
 
 	log.Println("Сервер запущен на http://localhost:8080/login")
 	log.Fatal(http.ListenAndServe(":8080", nil))

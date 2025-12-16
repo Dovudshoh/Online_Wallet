@@ -1,9 +1,14 @@
 package user
 
 import (
+	"fmt"
 	"html/template"
+	"io"
+	"log"
 	"net/http"
+	"os"
 	"strconv"
+
 )
 
 type UserHandler struct {
@@ -33,6 +38,62 @@ func (h *UserHandler) RegisterPage(w http.ResponseWriter, r *http.Request) {
 		}
 
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
+	}
+}
+func (h *UserHandler) AboutPage(w http.ResponseWriter, r *http.Request) {
+	userID, err := h.getUserIDFromCookie(r)
+	if err != nil {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+	profile, err := h.service.GetProfile(userID)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if r.Method == http.MethodGet {
+		h.templates.ExecuteTemplate(w, "about.html", profile)
+		return
+	}
+
+	if r.Method == http.MethodPost {
+		r.ParseMultipartForm(10 << 20)
+		name := r.FormValue("full_name")
+		bio := r.FormValue("bio")
+
+		var avatar_path string
+		file, handler, err := r.FormFile("avatar")
+		if err == nil{
+			defer file.Close()
+
+			os.MkdirAll("uploads", os.ModePerm)
+			avatar_path = fmt.Sprintf("uploads/%d_%s", userID, handler.Filename)
+
+			dst, _ := os.Create(avatar_path)
+			defer dst.Close()
+			io.Copy(dst, file)
+		}
+		oldAvatar, err := h.service.GetAvatar(userID)
+		if err != nil{
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+
+		err = h.service.UpProfile(name, bio, avatar_path, userID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		
+		if oldAvatar != "" {
+			err := os.Remove(oldAvatar)
+		if err != nil {
+			log.Println("Не удалось удалить старый аватар:", err)
+	}
+}
+
+
+		http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
 	}
 }
 
@@ -73,11 +134,15 @@ func (h *UserHandler) DashboardPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user, err := h.service.GetBalance(userID)
+	if err != nil{
+		http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+	}
+	user.Avatar_path, err = h.service.GetAvatar(userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
 	h.templates.ExecuteTemplate(w, "dashboard.html", user)
 }
 

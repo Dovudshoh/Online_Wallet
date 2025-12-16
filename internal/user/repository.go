@@ -1,9 +1,9 @@
 package user
 
 import (
-	"fmt"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -29,7 +29,18 @@ func (r *UserRepository) CreateUser(name, email, password string) error {
 		INSERT INTO users (name, email, password, balance_tjs, balance_usd, balance_eur, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`, name, email, string(hash), 100.0, 0.0, 0.0, time.Now())
-	return err
+	if err != nil{
+		return err
+	}
+	user_ID, err := r.GetByEmail(email)
+	if err != nil{
+		return err
+	}
+	err = r.CreateProfile(user_ID.ID, name)
+	if err != nil{
+		return err
+	}
+	return nil
 }
 
 func (r *UserRepository) GetByEmail(email string) (*User, error) {
@@ -68,6 +79,56 @@ func (r *UserRepository) GetUserIDByToken(token string) (int, error) {
 		return 0, err
 	}
 	return userID, nil
+}
+func (r *UserRepository) CreateProfile(id int, name string) error{
+	_, err := r.db.Exec(`
+		INSERT INTO profiles(user_id, full_name, bio, avatar_path, updated_at)
+		VALUES($1, $2, $3, $4, $5)
+	`, id, name, "Расскажите о себе", "uploads/default-avatar.jpg", time.Now())
+	return err
+}
+
+func (r *UserRepository)UpdateProfile(name, bio, avatar_path string, id int) error{
+	
+	_, err := r.db.Exec(`
+		UPDATE profiles SET full_name = $1, bio = $2, avatar_path = $3, updated_at = $4
+		WHERE user_id=$5
+	`, name, bio, avatar_path, time.Now(), id)
+	if err != nil{
+		return err
+	}
+	_, err = r.db.Exec(`
+		UPDATE users SET name = $1
+		WHERE id=$2
+	`, name, id)
+	if err != nil{
+		return err
+	}
+	return nil
+}
+
+func(r *UserRepository) GetProfile(id int) (*AboutPerson, error){
+	p := &AboutPerson{}
+	row := r.db.QueryRow(`
+	SELECT full_name, bio, avatar_path
+	FROM profiles
+	WHERE user_id=$1
+	`, id)
+	err := row.Scan(&p.Full_name, &p.Bio, &p.Avatar_path)
+	if err != nil{
+		return nil, err
+	}
+	return p, nil
+}
+func(r *UserRepository) GetAvatar_path(id int) (string, error){
+	var p string
+	row := r.db.QueryRow(`
+	SELECT avatar_path
+	FROM profiles
+	WHERE user_id=$1
+	`, id)
+	_ = row.Scan(&p)
+	return p, nil
 }
 
 func (r *UserRepository) GetUserByID(id int) (*User, error) {
