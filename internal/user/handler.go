@@ -56,6 +56,7 @@ func (h *UserHandler) AboutPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method == http.MethodPost {
+		const DefaultAvatar = "uploads/default-avatar.jpg"
 		r.ParseMultipartForm(10 << 20)
 		name := r.FormValue("full_name")
 		bio := r.FormValue("bio")
@@ -85,7 +86,7 @@ func (h *UserHandler) AboutPage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		
-		if oldAvatar != "" {
+		if oldAvatar != ""  && oldAvatar != DefaultAvatar{
 			err := os.Remove(oldAvatar)
 		if err != nil {
 			log.Println("Не удалось удалить старый аватар:", err)
