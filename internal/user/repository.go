@@ -89,11 +89,21 @@ func (r *UserRepository) CreateProfile(id int, name string) error{
 }
 
 func (r *UserRepository)UpdateProfile(name, bio, avatar_path string, id int) error{
-	
-	_, err := r.db.Exec(`
+	ava, err := r.GetAvatar_path(id)
+	if err != nil{
+		return err
+	}
+	if ava != avatar_path {_, err := r.db.Exec(`
 		UPDATE profiles SET full_name = $1, bio = $2, avatar_path = $3, updated_at = $4
 		WHERE user_id=$5
 	`, name, bio, avatar_path, time.Now(), id)
+	if err != nil{
+		return err
+	}}
+	_, err = r.db.Exec(`
+		UPDATE profiles SET full_name = $1, bio = $2, updated_at = $3
+		WHERE user_id=$4
+	`, name, bio, time.Now(), id)
 	if err != nil{
 		return err
 	}
