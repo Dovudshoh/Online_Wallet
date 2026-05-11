@@ -23,7 +23,7 @@ func main() {
 	defer database.Close()
 
 	userRepo := user.NewUserRepository(database)
-	userService := user.NewUserService(userRepo, "3b294c6ae8ae4dc1bebe1e3b50fbd216")
+	userService := user.NewUserService(userRepo, cfg.APIKey)
 
 	templates := template.Must(template.ParseGlob("templates/*.html"))
 	http.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir("uploads"))))
