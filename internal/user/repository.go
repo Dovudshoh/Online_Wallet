@@ -79,15 +79,18 @@ func (r *UserRepository) CheckPassword(u *User, password string) bool {
 
 func (r *UserRepository) SaveToken(userID int, token string) error {
 	_, err := r.db.Exec(`
-		INSERT INTO user_tokens(token, user_id, created_at)
-		VALUES($1, $2, $3)
-	`, token, userID, time.Now())
+		INSERT INTO user_tokens(token, user_id, created_at, expires_at)
+		VALUES($1, $2, $3, $4)
+	`, token, userID, time.Now(), time.Now().Add(24*time.Hour))
 	return err
 }
 
 func (r *UserRepository) GetUserIDByToken(token string) (int, error) {
 	var userID int
-	err := r.db.QueryRow(`SELECT user_id FROM user_tokens WHERE token=$1`, token).Scan(&userID)
+	err := r.db.QueryRow(`
+		SELECT user_id FROM user_tokens 
+		WHERE token=$1 AND expires_at > NOW()
+	`, token).Scan(&userID)
 	if err != nil {
 		return 0, err
 	}
