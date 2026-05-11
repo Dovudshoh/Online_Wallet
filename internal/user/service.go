@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 )
 
 var allowedCurrencies = map[string]bool{
@@ -28,9 +29,18 @@ func (s *UserService) GetAllUsersExcept(excludeID int) ([]*User, error) {
 }
 
 func (s *UserService) Register(name, email, password string) error {
+	if name == "" {
+		return errors.New("имя не может быть пустым")
+	}
+	if len(email) < 5 || !strings.Contains(email, "@") {
+		return errors.New("некорректный email")
+	}
+	if len(password) < 6 {
+		return errors.New("пароль должен быть не менее 6 символов")
+	}
 	existing, _ := s.repo.GetByEmail(email)
 	if existing != nil {
-		return errors.New("user already exists")
+		return errors.New("пользователь уже существует")
 	}
 	return s.repo.CreateUser(name, email, password)
 }
@@ -84,14 +94,23 @@ func (s *UserService) GetAvatar(id int) (string, error) {
 
 func (s *UserService) Deposit(userID int, amount float64) error {
 	if amount <= 0 {
-		return errors.New("amount must be positive")
+		return errors.New("сумма должна быть положительной")
+	}
+	if amount > 1_000_000 {
+		return errors.New("сумма превышает максимально допустимую")
 	}
 	return s.repo.Deposit(userID, amount)
 }
 
 func (s *UserService) Transfer(fromID, toID int, amount float64) error {
 	if amount <= 0 {
-		return errors.New("amount must be positive")
+		return errors.New("сумма должна быть положительной")
+	}
+	if amount > 1_000_000 {
+		return errors.New("сумма превышает максимально допустимую")
+	}
+	if fromID == toID {
+		return errors.New("нельзя переводить самому себе")
 	}
 	return s.repo.Transfer(fromID, toID, amount)
 }
