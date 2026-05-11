@@ -11,40 +11,37 @@ import (
 )
 
 func main() {
-	// Загружаем конфиг
 	cfg, err := config.LoadConfig("config.json")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Подключаемся к БД через конфиг
 	database, err := db.Connect(cfg)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer database.Close()
 
-	// Репозиторий и сервис
 	userRepo := user.NewUserRepository(database)
 	userService := user.NewUserService(userRepo, "3b294c6ae8ae4dc1bebe1e3b50fbd216")
 
-	// Шаблоны
 	templates := template.Must(template.ParseGlob("templates/*.html"))
 	http.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir("uploads"))))
 
-	// Handler
 	userHandler := user.NewUserHandler(userService, templates)
 
-	// Роуты
+	// Публичные маршруты — без авторизации
 	http.HandleFunc("/register", userHandler.RegisterPage)
 	http.HandleFunc("/login", userHandler.LoginPage)
-	http.HandleFunc("/dashboard", userHandler.DashboardPage)
-	http.HandleFunc("/deposit", userHandler.DepositPage)
-	http.HandleFunc("/transfer", userHandler.TransferPage)
-	http.HandleFunc("/convert", userHandler.ConvertPage)
-	http.HandleFunc("/transactions", userHandler.TransactionsPage)
-	http.HandleFunc("/logout", userHandler.LogoutPage)
-	http.HandleFunc("/about", userHandler.AboutPage)
+
+	// Защищённые маршруты — через middleware
+	http.Handle("/dashboard", userHandler.AuthMiddleware(http.HandlerFunc(userHandler.DashboardPage)))
+	http.Handle("/deposit", userHandler.AuthMiddleware(http.HandlerFunc(userHandler.DepositPage)))
+	http.Handle("/transfer", userHandler.AuthMiddleware(http.HandlerFunc(userHandler.TransferPage)))
+	http.Handle("/convert", userHandler.AuthMiddleware(http.HandlerFunc(userHandler.ConvertPage)))
+	http.Handle("/transactions", userHandler.AuthMiddleware(http.HandlerFunc(userHandler.TransactionsPage)))
+	http.Handle("/about", userHandler.AuthMiddleware(http.HandlerFunc(userHandler.AboutPage)))
+	http.Handle("/logout", userHandler.AuthMiddleware(http.HandlerFunc(userHandler.LogoutPage)))
 
 	log.Println("Сервер запущен на http://localhost:8080/login")
 	log.Fatal(http.ListenAndServe(":8080", nil))
