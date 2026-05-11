@@ -13,6 +13,7 @@
 - [Установка и запуск](#-установка-и-запуск)
 - [Конфигурация](#-конфигурация)
 - [Маршруты приложения](#-маршруты-приложения)
+- [Безопасность](#-безопасность)
 - [API конвертации валют](#-api-конвертации-валют)
 
 ---
@@ -47,7 +48,7 @@
 ```
 Online_Bank/
 ├── main.go                      # Точка входа, регистрация маршрутов
-├── config.json                  # Конфигурация подключения к БД
+├── config.json                  # Конфигурация подключения к БД и API-ключ
 ├── go.mod
 ├── go.sum
 │
@@ -61,7 +62,7 @@ Online_Bank/
 │   ├── currency/
 │   │   └── currency.go          # Получение курсов валют через Open Exchange Rates
 │   └── user/
-│       ├── handler.go           # HTTP-обработчики (регистрация, логин, дашборд и др.)
+│       ├── handler.go           # HTTP-обработчики + AuthMiddleware
 │       ├── service.go           # Бизнес-логика (валидация, токены, конвертация)
 │       ├── repository.go        # Работа с БД (SQL-запросы)
 │       └── model.go             # Модели данных (User, Transactions, AboutPerson)
@@ -84,7 +85,7 @@ Online_Bank/
 
 ## 🗄 База данных
 
-Приложение использует три основные таблицы:
+Приложение использует четыре основные таблицы:
 
 **`users`** — аккаунты пользователей
 ```sql
@@ -116,7 +117,8 @@ CREATE TABLE profiles (
 CREATE TABLE user_tokens (
     token       TEXT PRIMARY KEY,
     user_id     INT REFERENCES users(id),
-    created_at  TIMESTAMP
+    created_at  TIMESTAMP,
+    expires_at  TIMESTAMP NOT NULL       -- токен истекает через 24 часа
 );
 ```
 
@@ -165,7 +167,8 @@ CREATE DATABASE online_bank;
 {
   "db_user": "postgres",
   "db_password": "your_password",
-  "db_name": "online_bank"
+  "db_name": "online_bank",
+  "api_key": "your_openexchangerates_api_key"
 }
 ```
 
@@ -192,7 +195,7 @@ go run main.go
 | `db_user`     | `config.json` | Имя пользователя PostgreSQL          |
 | `db_password` | `config.json` | Пароль PostgreSQL                    |
 | `db_name`     | `config.json` | Имя базы данных                      |
-| `apiKey`      | `main.go`     | API-ключ Open Exchange Rates         |
+| `api_key`     | `config.json` | API-ключ Open Exchange Rates         |
 
 > ⚠️ **Важно:** не коммитьте `config.json` с реальными учётными данными. Добавьте его в `.gitignore`.
 
@@ -211,6 +214,18 @@ go run main.go
 | GET         | `/transactions` | История транзакций                        | ✅                  |
 | GET / POST  | `/about`        | Просмотр и редактирование профиля         | ✅                  |
 | GET         | `/logout`       | Выход из системы                          | ✅                  |
+
+---
+
+## 🔒 Безопасность
+
+- **Хэширование паролей** — bcrypt с дефолтной сложностью
+- **Cookie-токены** — `HttpOnly`, недоступны из JavaScript
+- **Срок истечения сессий** — токены автоматически истекают через 24 часа
+- **Защита маршрутов** — `AuthMiddleware` централизованно проверяет авторизацию на всех защищённых маршрутах
+- **Защита от SQL-инъекций** — параметризованные запросы везде; названия валютных колонок проверяются через whitelist перед подстановкой
+- **Валидация входных данных** — проверка email, длины пароля, суммы операций; запрет перевода самому себе
+- **Конфигурация** — чувствительные данные (пароль БД, API-ключ) хранятся в `config.json`, не в коде
 
 ---
 
