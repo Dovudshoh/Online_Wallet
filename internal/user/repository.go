@@ -4,10 +4,25 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
+
+var validCurrencies = map[string]bool{
+	"tjs": true,
+	"usd": true,
+	"eur": true,
+}
+
+func safeCurrencyColumn(currency string) (string, error) {
+	col := strings.ToLower(currency)
+	if !validCurrencies[col] {
+		return "", fmt.Errorf("unsupported currency: %s", currency)
+	}
+	return "balance_" + col, nil
+}
 
 type UserRepository struct {
 	db *sql.DB
@@ -16,8 +31,6 @@ type UserRepository struct {
 func NewUserRepository(db *sql.DB) *UserRepository {
 	return &UserRepository{db: db}
 }
-
-
 
 func (r *UserRepository) CreateUser(name, email, password string) error {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
@@ -29,15 +42,15 @@ func (r *UserRepository) CreateUser(name, email, password string) error {
 		INSERT INTO users (name, email, password, balance_tjs, balance_usd, balance_eur, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`, name, email, string(hash), 100.0, 0.0, 0.0, time.Now())
-	if err != nil{
+	if err != nil {
 		return err
 	}
 	user_ID, err := r.GetByEmail(email)
-	if err != nil{
+	if err != nil {
 		return err
 	}
 	err = r.CreateProfile(user_ID.ID, name)
-	if err != nil{
+	if err != nil {
 		return err
 	}
 	return nil
@@ -80,7 +93,8 @@ func (r *UserRepository) GetUserIDByToken(token string) (int, error) {
 	}
 	return userID, nil
 }
-func (r *UserRepository) CreateProfile(id int, name string) error{
+
+func (r *UserRepository) CreateProfile(id int, name string) error {
 	_, err := r.db.Exec(`
 		INSERT INTO profiles(user_id, full_name, bio, avatar_path, updated_at)
 		VALUES($1, $2, $3, $4, $5)
@@ -88,54 +102,57 @@ func (r *UserRepository) CreateProfile(id int, name string) error{
 	return err
 }
 
-func (r *UserRepository)UpdateProfile(name, bio, avatar_path string, id int) error{
+func (r *UserRepository) UpdateProfile(name, bio, avatar_path string, id int) error {
 	ava, err := r.GetAvatar_path(id)
-	if err != nil{
+	if err != nil {
 		return err
 	}
-	if ava != avatar_path {_, err := r.db.Exec(`
-		UPDATE profiles SET full_name = $1, bio = $2, avatar_path = $3, updated_at = $4
-		WHERE user_id=$5
-	`, name, bio, avatar_path, time.Now(), id)
-	if err != nil{
-		return err
-	}}
+	if ava != avatar_path {
+		_, err := r.db.Exec(`
+			UPDATE profiles SET full_name = $1, bio = $2, avatar_path = $3, updated_at = $4
+			WHERE user_id=$5
+		`, name, bio, avatar_path, time.Now(), id)
+		if err != nil {
+			return err
+		}
+	}
 	_, err = r.db.Exec(`
 		UPDATE profiles SET full_name = $1, bio = $2, updated_at = $3
 		WHERE user_id=$4
 	`, name, bio, time.Now(), id)
-	if err != nil{
+	if err != nil {
 		return err
 	}
 	_, err = r.db.Exec(`
 		UPDATE users SET name = $1
 		WHERE id=$2
 	`, name, id)
-	if err != nil{
+	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func(r *UserRepository) GetProfile(id int) (*AboutPerson, error){
+func (r *UserRepository) GetProfile(id int) (*AboutPerson, error) {
 	p := &AboutPerson{}
 	row := r.db.QueryRow(`
-	SELECT full_name, bio, avatar_path
-	FROM profiles
-	WHERE user_id=$1
+		SELECT full_name, bio, avatar_path
+		FROM profiles
+		WHERE user_id=$1
 	`, id)
 	err := row.Scan(&p.Full_name, &p.Bio, &p.Avatar_path)
-	if err != nil{
+	if err != nil {
 		return nil, err
 	}
 	return p, nil
 }
-func(r *UserRepository) GetAvatar_path(id int) (string, error){
+
+func (r *UserRepository) GetAvatar_path(id int) (string, error) {
 	var p string
 	row := r.db.QueryRow(`
-	SELECT avatar_path
-	FROM profiles
-	WHERE user_id=$1
+		SELECT avatar_path
+		FROM profiles
+		WHERE user_id=$1
 	`, id)
 	_ = row.Scan(&p)
 	return p, nil
@@ -154,6 +171,7 @@ func (r *UserRepository) GetUserByID(id int) (*User, error) {
 	}
 	return u, nil
 }
+
 func (r *UserRepository) GetTransactionsByID(userID int) ([]*Transactions, error) {
 	rows, err := r.db.Query(`
 		SELECT type, amount, currency, description, created_at
@@ -164,7 +182,7 @@ func (r *UserRepository) GetTransactionsByID(userID int) ([]*Transactions, error
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	var transactions []*Transactions
 	for rows.Next() {
 		t := &Transactions{}
@@ -177,11 +195,9 @@ func (r *UserRepository) GetTransactionsByID(userID int) ([]*Transactions, error
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	
+
 	return transactions, nil
 }
-
-
 
 func (r *UserRepository) GetAllUsersExcept(excludeID int) ([]*User, error) {
 	rows, err := r.db.Query("SELECT id, name FROM users WHERE id != $1", excludeID)
@@ -275,21 +291,29 @@ func (r *UserRepository) Transfer(fromID, toID int, amount float64) error {
 	return tx.Commit()
 }
 
-
 func (r *UserRepository) ConvertCurrency(userID int, from, to string, amount, rate float64) error {
+	fromCol, err := safeCurrencyColumn(from)
+	if err != nil {
+		return err
+	}
+	toCol, err := safeCurrencyColumn(to)
+	if err != nil {
+		return err
+	}
+
 	tx, err := r.db.Begin()
 	if err != nil {
 		return err
 	}
 
-	_, err = tx.Exec(`UPDATE users SET balance_`+from+` = balance_`+from+` - $1 WHERE id=$2`, amount, userID)
+	_, err = tx.Exec(`UPDATE users SET `+fromCol+` = `+fromCol+` - $1 WHERE id=$2`, amount, userID)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	converted := amount * rate
-	_, err = tx.Exec(`UPDATE users SET balance_`+to+` = balance_`+to+` + $1 WHERE id=$2`, converted, userID)
+	_, err = tx.Exec(`UPDATE users SET `+toCol+` = `+toCol+` + $1 WHERE id=$2`, converted, userID)
 	if err != nil {
 		tx.Rollback()
 		return err
